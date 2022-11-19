@@ -5,7 +5,7 @@ pragma solidity ^0.6.0;
 
 contract SimpleStorage{
 
-    // This will get initialized from 0 !
+    // This will get initialized from 0!
     uint256 favoriteNumber; 
 
     // Struct Create
