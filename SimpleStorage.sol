@@ -5,7 +5,7 @@ pragma solidity ^0.6.0;
 
 contract SimpleStorage{
 
-    // This will get initialized from 0!
+    // This will get initialized from 0 !
     uint256 favoriteNumber; 
 
     // Struct Create
@@ -34,7 +34,7 @@ contract SimpleStorage{
     // view, pure: these are JUST state viewers and can not make transactions. AND NOT CHANGE STATE OF CHAIN, so.
     // also public varibales have built-in state viewers.
     function retrieve() public view returns(uint256) {
-        return favoriteNumber + 12;
+        return favoriteNumber;
     }
 
     // Making Function of adding person
