@@ -26,8 +26,9 @@ contract SimpleStorage {
     // making MAPPING (mapping is used for like Dictionary)
     mapping(string => uint256) public nameToFavoritenumber;
 
-    function store(uint256 _favoriteNumber) public {
+    function store(uint256 _favoriteNumber) public returns (uint256) {
         favoriteNumber = _favoriteNumber;
+        return _favoriteNumber;
     }
 
     // view, pure: these are JUST state viewers and can not make transactions. AND NOT CHANGE STATE OF CHAIN, so.
