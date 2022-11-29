@@ -22,8 +22,11 @@ contract FundMe {
         funders.push(msg.sender);
     }
 
-    constructor() {
+    AggregatorV3Interface public priceFeed; // address
+
+    constructor(address _priceFeed) {
         // this code block exetuces immediately... after deploying
+        priceFeed = AggregatorV3Interface(_priceFeed);
         owner = msg.sender;
     }
 
@@ -54,15 +57,23 @@ contract FundMe {
     }
 
     function getVerison() public view returns (uint256) {
-        AggregatorV3Interface priceFeed = AggregatorV3Interface(ETH_USD_ID);
         return priceFeed.version();
     }
 
     function getPrice() public view returns (uint256) {
-        AggregatorV3Interface priceFeed = AggregatorV3Interface(ETH_USD_ID);
         (, int256 answer, , , ) = priceFeed.latestRoundData(); // this has 8 decimal. but we should make it 18 DIGIT.
         uint256 result = uint256(answer) * (10**10);
         return uint256(result);
+    }
+
+    function getEntranceFee() public view returns (uint256) {
+        // minimumUSD
+        uint256 minimumUSD = 50 * 10**18;
+        uint256 price = getPrice();
+        uint256 precision = 1 * 10**18;
+        // return (minimumUSD * precision) / price;
+        // We fixed a rounding error found in the video by adding one!
+        return ((minimumUSD * precision) / price) + 1;
     }
 
     function getConversionRate(uint256 ethAmount)
