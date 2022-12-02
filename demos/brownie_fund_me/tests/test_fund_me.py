@@ -24,5 +24,7 @@ def test_only_owner_can_withdraw():
     fund_me = deploy_fund_me()
     bad_actor = accounts.add()
 
-    with pytest.raises(exceptions.VirtualMachineError):
+    with pytest.raises(
+        exceptions.VirtualMachineError
+    ):  # altındakini test ettirir ve parantez içindeki hata olup olmadığına bakar. Parantez içindek durum gerçekleşirse "PASSED" olur.
         fund_me.withdraw({"from": bad_actor})
