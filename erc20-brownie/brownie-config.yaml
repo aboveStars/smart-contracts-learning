@@ -4,4 +4,4 @@ compiler:
       "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.8.0"
 dotenv: .env
 wallets:
-  from-key: ${PRIVATE_KEY}
+  from_key: ${PRIVATE_KEY}
