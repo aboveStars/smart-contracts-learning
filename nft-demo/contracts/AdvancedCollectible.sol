@@ -7,30 +7,30 @@ contract AdvancedCollectible is ERC721URIStorage {
     enum Breed {
         PUG,
         SHIBA_INU,
-        ST_BERNARD
+        ST_BERNARD,
+        RIZE
     }
     mapping(uint256 => Breed) public tokenIDtoBreed;
-    mapping(bytes32 => address) public requestIDtoSender;
+
+    // mapping(bytes32 => address) public requestIDtoSender;
 
     constructor() ERC721("Doggie", "Dog") {
         tokenCounter = 0;
     }
 
-    function createCollectible() public returns (bytes32) {
-        requestIDtoSender[0] = msg.sender;
-    }
-
-    function randomArea(string memory _tokenURI) public {
-        Breed breed = Breed(2);
+    function createCollectible() public {
+        Breed breed = Breed(3);
         uint256 newTokenID = tokenCounter;
+
         tokenIDtoBreed[newTokenID] = breed;
-        address owner = requestIDtoSender[0];
-        _safeMint(owner, newTokenID);
-        setTokenURI(newTokenID, _tokenURI);
+
+        address owner = msg.sender;
+        _safeMint(owner, newTokenID); // making web-page ...
         tokenCounter += 1;
     }
 
     function setTokenURI(uint256 tokenID, string memory _tokenURI) public {
+        // fills web-page
         require(_isApprovedOrOwner(_msgSender(), tokenID));
         _setTokenURI(tokenID, _tokenURI);
     }
