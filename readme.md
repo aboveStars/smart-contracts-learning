@@ -1,5 +1,5 @@
 # smart-contracts-learning
-This repo contains my `lesson` files for `smart contract development` with `python`.
+This repo contains my **lesson** files for **smart contract development** with **python**.
 ## Used Frameworks
   * [Brownie](https://eth-brownie.readthedocs.io/en/stable/)
   * [Web3.py](https://web3py.readthedocs.io/en/v5/)
