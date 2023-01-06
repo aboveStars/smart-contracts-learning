@@ -1,118 +1,100 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.8;
+pragma solidity ^0.8.0;
 
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
+import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 
-contract Lottery is VRFConsumerBase, Ownable {
-    address payable[] public players;
-    address payable public recentWinner;
-    uint256 usdEntryFee;
-    AggregatorV3Interface internal eth_usd_priceFeed;
+error EntranceFeeNotEnough();
+error LotteryPrizeCanNotBeSent();
+error NoPlayersFoundGivenAddress();
+error ExitingPlayerFundFailure();
 
-    enum LOTTERY_STATE {
-        OPEN,
-        CLOSED,
-        CALCULATING_WINNER
-    }
+contract Lottery is KeeperCompatibleInterface, VRFConsumerBaseV2 {
+    uint256 private i_interval;
+    uint256 private s_firstTimeStamp;
+    uint256 private i_fee;
+    address payable[] private s_players;
 
-    LOTTERY_STATE public lottery_state;
-    uint256 public randomness;
+    VRFCoordinatorV2Interface private immutable i_vrfCoor;
+    bytes32 private immutable i_gasLane;
+    uint64 private immutable i_subId;
+    uint32 private immutable i_callBack;
 
-    uint256 public fee;
-    bytes32 public keyhash;
 
-    //event RequestedRandomness(bytes32 requestId);
+    event upkeepPerformed();
+    event NOT_ENOUGH_ENTRANCE_FEE(address indexed _poorAddress);
+    event PRIZE_COULD_NOT_BE_SENT(address indexed _luckilyButCanNotSendPrize);
+    event WINNER_SELECTED(address indexed _winnerAddress);
 
-    // We actullay put 2 constructer ın here First is ours, second is from VRFConsumer...
-    //With its rights VRF also needes parameters. So we give it. (-->First --> Second)
     constructor(
-        address _priceFeedAddress,
-        address _vrfCoordinator,
-        address _link,
+        uint256 _interval,
         uint256 _fee,
-        bytes32 _keyhash
-    ) VRFConsumerBase(_vrfCoordinator, _link) {
-        usdEntryFee = 50 * (1e18);
-        eth_usd_priceFeed = AggregatorV3Interface(_priceFeedAddress);
+        address _vrfAddress,
+        bytes32 _gasLane,
+        uint64 _subId,
+        uint32 _callBackGasLimit
+    ) VRFConsumerBaseV2(_vrfAddress) {
+        i_interval = _interval;
+        i_fee = _fee;
 
-        lottery_state = LOTTERY_STATE.CLOSED; // for algorithm
+        i_vrfCoor = VRFCoordinatorV2Interface(_vrfAddress);
+        i_gasLane = _gasLane;
+        i_subId = _subId;
+        i_callBack = _callBackGasLimit;
 
-        fee = _fee;
-        keyhash = _keyhash;
+        s_firstTimeStamp = block.timestamp;
     }
 
-    function enter() public payable {
-        // if lottery is open
-        require(
-            lottery_state == LOTTERY_STATE.OPEN,
-            "No Active Lottery Found to Enter"
-        );
+    function checkUpkeep(
+        bytes memory
+    ) external view override returns (bool upkeepNeeded, bytes memory) {
+        bool interval_test = (block.timestamp - s_firstTimeStamp) > i_interval;
+        bool playerLengthTest = s_players.length > 0;
 
-        // $50 minimum but in ether
-        require(msg.value >= getEntranceFee());
-
-        players.push(payable(msg.sender));
+        upkeepNeeded = interval_test && playerLengthTest;
     }
 
-    function getEntranceFee() public view returns (uint256) {
-        (, int256 price, , , ) = eth_usd_priceFeed.latestRoundData();
-        uint256 adjustedPrice = uint256(price) * (1e10);
-        uint256 costToEnter = (usdEntryFee * (1e18)) / adjustedPrice;
-        return costToEnter;
+    function performUpkeep(bytes calldata) external override {
+        i_vrfCoor.requestRandomWords(i_gasLane, i_subId, 3, i_callBack, 1);
+        emit upkeepPerformed();
     }
 
-    function startLottery() public onlyOwner {
-        require(
-            lottery_state == LOTTERY_STATE.CLOSED,
-            " Already a lottery is open "
-        );
-        lottery_state = LOTTERY_STATE.OPEN;
+    function fulfillRandomWords(uint256, uint256[] memory randomWords) internal override{
+        s_firstTimeStamp = block.timestamp;
+        uint256 luckiliyIndex = randomWords[0] % s_players.length;
+        address payable recentWinner = s_players[luckiliyIndex]; // this area will be randomized...
+
+        (bool success, ) = recentWinner.call{value: address(this).balance}("");
+        if (!success) {
+            emit PRIZE_COULD_NOT_BE_SENT(recentWinner);
+            revert LotteryPrizeCanNotBeSent();
+        }
+
+        emit WINNER_SELECTED(recentWinner);
+        s_players = new address payable[](0);     
     }
 
-    function endLottery() public onlyOwner {
-        // Dirty and vulnerable Random Mechanism UNSAFE ! BECASUE ALL THINGS IN BOTTOM IS PREDICTABLE
-        /*
-        uint256 winnerIndex = uint256(
-            keccak256(
-                abi.encodePacked(
-                    nonce,
-                    msg.sender,
-                    block.difficulty,
-                    block.timestamp
-                )
-            )
-        ) % players.length;
-        */
-
-        lottery_state = LOTTERY_STATE.CALCULATING_WINNER;
-
-        // REAL RANDOMNESS !!!
-
-        bytes32 requestId = requestRandomness(keyhash, fee);
-        //emit RequestedRandomness(requestId);
+    function enterToLottery() public payable {
+        if (msg.value < (i_fee)) {
+            emit NOT_ENOUGH_ENTRANCE_FEE((msg.sender));
+            revert EntranceFeeNotEnough();
+        }
+        s_players.push(payable(msg.sender));
     }
 
-    function fulfillRandomness(bytes32 _requestId, uint256 _randomness)
-        internal
-        override
-    {
-        require(
-            lottery_state == LOTTERY_STATE.CALCULATING_WINNER,
-            "Lottery isn't Finished"
-        );
-        require(_randomness > 0, "random not found !");
+    function getDelta() public view returns (uint256) {
+        return (block.timestamp - s_firstTimeStamp);
+    }
 
-        uint256 indexOfWinner = _randomness % players.length;
-        recentWinner = players[indexOfWinner];
+    function getPlayers(uint256 index_of_needed_player) public view returns (address payable) {
+        return (s_players[index_of_needed_player]);
+    }
 
-        recentWinner.transfer(address(this).balance); // payment
+    function areKeepersPerform() public view returns (bool performNeeded) {
+        bool interval_test = (block.timestamp - s_firstTimeStamp) > i_interval;
+        bool playerLengthTest = s_players.length > 0;
 
-        //reset
-        players = new address payable[](0); // Zero stands for size of new array.
-
-        lottery_state = LOTTERY_STATE.CLOSED;
-        randomness = _randomness;
+        performNeeded = interval_test && playerLengthTest;
     }
 }
